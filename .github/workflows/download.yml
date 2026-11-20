@@ -1,0 +1,67 @@
+name: Download Unity 6000.6.1f1
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Show runner egress IP
+        run: |
+          echo "Runner IP info:"
+          curl -s --max-time 20 https://api.ip.sb/geoip || true
+          echo
+
+      - name: Download Unity installer
+        run: |
+          set -e
+          URL="https://download.unity3d.com/download_unity/7efac9f6c10e/Windows64EditorInstaller/UnitySetup64-6000.6.1f1.exe"
+          echo "Downloading: $URL"
+          curl -L --fail --retry 5 --retry-delay 5 --retry-all-errors \
+               --connect-timeout 30 -o "UnitySetup64-6000.6.1f1.exe" "$URL"
+          SIZE=$(stat -c%s "UnitySetup64-6000.6.1f1.exe")
+          echo "Downloaded bytes: $SIZE"
+          echo "Expected bytes: 3858324720"
+          if [ "$SIZE" -lt 3000000000 ]; then
+            echo "ERROR: file is too small ($SIZE bytes). Download failed or got an error page."
+            head -c 600 "UnitySetup64-6000.6.1f1.exe" || true
+            exit 1
+          fi
+          echo "OK, file looks valid."
+
+      - name: Checksum and split
+        run: |
+          set -e
+          sha256sum "UnitySetup64-6000.6.1f1.exe" | tee SHA256SUMS.txt
+          split -b 1500m -d --numeric-suffixes=1 --suffix-length=2 \
+                "UnitySetup64-6000.6.1f1.exe" "UnitySetup64-6000.6.1f1.exe.part"
+          ls -lh UnitySetup64-6000.6.1f1.exe.part*
+          sha256sum UnitySetup64-6000.6.1f1.exe.part* >> SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish as Release (fast to download in China via gh-proxy)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          TAG="unity-6000.6.1f1"
+          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" \
+            --title "Unity 6000.6.1f1 Windows Installer" \
+            --notes "UnitySetup64-6000.6.1f1.exe (3858324720 bytes) split into parts. Merge with: copy /b part01+part02+...+part03 out.exe" \
+            UnitySetup64-6000.6.1f1.exe.part* SHA256SUMS.txt
+
+      - name: Upload parts as artifacts (backup route)
+        uses: actions/upload-artifact@v4
+        with:
+          name: unity-6000.6.1f1-parts
+          path: |
+            UnitySetup64-6000.6.1f1.exe.part*
+            SHA256SUMS.txt
+          retention-days: 5
+          compression-level: 0

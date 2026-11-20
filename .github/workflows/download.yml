@@ -50,10 +50,10 @@ jobs:
         run: |
           set -e
           TAG="unity-6000.6.1f1"
-          gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "$TAG" \
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
             --title "Unity 6000.6.1f1 Windows Installer" \
-            --notes "UnitySetup64-6000.6.1f1.exe (3858324720 bytes) split into parts. Merge with: copy /b part01+part02+...+part03 out.exe" \
+            --notes "UnitySetup64-6000.6.1f1.exe, 3858324720 bytes, sha256 8884daa489c8708c17da571c46a869839dd7bbf45f69048bd4db5c6d054d5e36. Split into 3 parts. Merge in cmd: copy /b part01+part02+part03 out.exe" \
             UnitySetup64-6000.6.1f1.exe.part* SHA256SUMS.txt
 
       - name: Upload parts as artifacts (backup route)
